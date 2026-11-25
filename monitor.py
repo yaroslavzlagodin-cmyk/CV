@@ -1,7 +1,5 @@
 """Pulse / PC Diagnostic Tool — desktop entry point."""
 import json
-import os
-import sys
 import time
 import tkinter as tk
 from collections import deque
@@ -10,14 +8,12 @@ from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
-ROOT = Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT / ".deps"))
 import customtkinter as ct
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
 from metrics import power_events, snapshot
-from strings import LANGUAGES, TEXT
+from strings import TEXT
 
 DARK = ("#14131d", "#1c1a28", "#252232", "#352f46", "#f5f2fc", "#b0a8c2", "#5edbe9", "#d79aff", "#f7b582")
 LIGHT = ("#f3f1f7", "#ffffff", "#faf8fe", "#ddd7e7", "#231c32", "#645a72", "#077885", "#8444a2", "#99531d")
@@ -30,11 +26,9 @@ def gib(value):
 class Monitor(ct.CTk):
     def __init__(self):
         super().__init__()
-        self.title("Pulse · PC Diagnostic Tool")
         self.geometry("1160x820")
         self.minsize(850, 680)
         self.dark = True
-        self.lang = 0
         self.page = "overview"
         self.data = None
         self.events = None
@@ -55,7 +49,7 @@ class Monitor(ct.CTk):
         self.after(20, self.poll)
 
     def t(self, key):
-        return TEXT[key][self.lang]
+        return TEXT[key]
 
     def label(self, parent, text, size=14, color=None, bold=False, **pack):
         widget = ct.CTkLabel(parent, text=text, text_color=color or self.ink,
@@ -74,42 +68,66 @@ class Monitor(ct.CTk):
         return b
 
     def rebuild(self):
+        self.title(self.t("app_title"))
         for child in self.winfo_children():
             child.destroy()
         self.bg, self.side, self.card, self.edge, self.ink, self.muted, self.cyan, self.pink, self.amber = DARK if self.dark else LIGHT
         ct.set_appearance_mode("dark" if self.dark else "light")
         self.configure(fg_color=self.bg)
+        self.pages = {}
+        self.tables = {}
+        self.rendered = {}
+        self.nav_buttons = {}
         nav = self.frame(self, self.side, 0)
         nav.pack(side="left", fill="y")
-        self.label(nav, "◈  PULSE", 26, self.cyan, True, padx=18, pady=(22, 25), anchor="w")
+        brand = self.frame(nav, self.side)
+        brand.pack(fill="x", padx=16, pady=(26, 20))
+        mark = tk.Canvas(brand, width=38, height=38, highlightthickness=0, bg=self.side)
+        mark.pack(side="left", padx=(0, 9))
+        mark.create_oval(1, 1, 37, 37, outline=self.cyan, width=2)
+        mark.create_line(5, 20, 12, 20, 16, 11, 21, 27, 25, 18, 33, 18, fill=self.cyan, width=2)
+        self.label(brand, "Pulse", 26, bold=True, side="left")
+        self.label(nav, self.t("live"), 12, self.muted, padx=18, pady=(0, 8), anchor="w")
         for key, icon in (("overview", "◉"), ("processes", "≡"), ("history", "◷")):
-            self.button(nav, f"{icon}    {self.t(key)}", lambda k=key: self.switch(k), key == self.page)
+            self.nav_buttons[key] = self.button(nav, f"{icon}    {self.t(key)}", lambda k=key: self.switch(k))
         self.frame(nav, self.side).pack(fill="both", expand=True)
-        self.label(nav, self.t("language"), 12, self.muted, padx=16, anchor="w")
-        language = ct.CTkOptionMenu(nav, values=LANGUAGES, command=self.set_language,
-                                   fg_color=self.edge, button_color=self.edge, text_color=self.ink)
-        language.set(LANGUAGES[self.lang])
-        language.pack(fill="x", padx=12, pady=7)
+        divider = self.frame(nav, self.edge, 0)
+        divider.configure(height=1)
+        divider.pack(fill="x", padx=15, pady=12)
         self.button(nav, self.t("light" if self.dark else "dark"), self.toggle_theme)
-        self.button(nav, self.t("report"), self.save, True)
-        self.label(nav, "PC Diagnostic Tool", 11, self.muted, padx=15, pady=12, anchor="w")
-        self.main = self.frame(self, self.bg, 0)
-        self.main.pack(side="left", expand=True, fill="both", padx=20, pady=15)
-        self.label(self.main, self.t(self.page), 29, bold=True)
-        self.sub = self.label(self.main, "", 13, self.muted, anchor="w", pady=(0, 12))
-        if self.page == "overview":
-            self.build_overview()
-        else:
-            self.build_table()
-        self.refresh()
+        report = self.button(nav, "↓    " + self.t("report"), self.save)
+        report.configure(fg_color=self.cyan, text_color=self.bg, hover_color=self.pink)
+        report.pack_configure(pady=(6, 18))
+        self.content = self.frame(self, self.bg, 0)
+        self.content.pack(side="left", expand=True, fill="both", padx=20, pady=15)
+        self.heading = self.label(self.content, "", 29, bold=True)
+        self.sub = self.label(self.content, "", 13, self.muted, anchor="w", pady=(0, 12))
+        self.switch(self.page)
 
     def switch(self, page):
+        if page == self.page and page in self.pages:
+            return
+        if self.page in self.pages:
+            self.pages[self.page].pack_forget()
         self.page = page
-        self.rebuild()
-
-    def set_language(self, language):
-        self.lang = LANGUAGES.index(language)
-        self.rebuild()
+        self.heading.configure(text=self.t(page))
+        for key, button in self.nav_buttons.items():
+            active = key == page
+            button.configure(fg_color=self.edge if active else "transparent",
+                             text_color=self.cyan if active else self.muted)
+        # Залишаємо графік і таблиці в пам’яті під час навігації.
+        if page not in self.pages:
+            self.main = self.frame(self.content, self.bg, 0)
+            self.pages[page] = self.main
+            if page == "overview":
+                self.build_overview()
+            else:
+                self.build_table()
+                self.tables[page] = self.table
+        self.main = self.pages[page]
+        self.table = self.tables.get(page)
+        self.main.pack(fill="both", expand=True)
+        self.refresh()
 
     def toggle_theme(self):
         self.dark = not self.dark
@@ -128,8 +146,11 @@ class Monitor(ct.CTk):
             self.label(box, self.t(key), 15, bold=True, padx=14, pady=(9, 1), anchor="w")
             ring = tk.Canvas(box, width=96, height=83, bg=self.card, highlightthickness=0)
             ring.pack()
+            ring.create_arc(10, 5, 86, 81, start=230, extent=-280, outline=self.edge, width=5, style="arc")
+            ring.create_arc(10, 5, 86, 81, start=230, extent=0, outline=color, width=5, style="arc", tags="level")
+            ring.create_text(48, 45, text="—", fill=self.ink, font=("Segoe UI", 15, "bold"), tags="value")
             detail = self.label(box, "—", 12, self.muted, anchor="center", pady=(1, 8))
-            self.gauges.append((ring, detail, color))
+            self.gauges.append((ring, detail))
         graph = self.frame(body, self.card)
         graph.pack(fill="x", pady=10, padx=(0, 7))
         head = self.frame(graph, self.card)
@@ -182,12 +203,18 @@ class Monitor(ct.CTk):
         self.table.pack(side="left", fill="both", expand=True)
 
     def render_table(self):
-        if self.page == "overview" or not hasattr(self, "table") or not self.table.winfo_exists():
+        if self.page not in self.tables:
             return
+        source = self.data if self.page == "processes" else self.events
+        query = self.query.get().strip().casefold() if self.page == "processes" else ""
+        previous = self.rendered.get(self.page)
+        if previous and previous[0] is source and previous[1] == query:
+            return
+        self.rendered[self.page] = (source, query)
         position = self.table.yview()
         self.table.delete(*self.table.get_children())
         if self.page == "processes" and self.data:
-            q = self.query.get().strip().casefold()
+            q = query
             for p in self.data["processes"]:
                 if q in p["name"].casefold() or q == str(p["pid"]):
                     mem = "—" if p["memory"] is None else f"{p['memory']/2**20:,.1f}"
@@ -218,14 +245,11 @@ class Monitor(ct.CTk):
         metrics = [(d["cpu"], f"{self.t('cores')} · {len(d['cores'])}"),
                    (d["ram"], f"{gib(d['ram_used'])} / {gib(d['ram_total'])}"),
                    (100*used/total if total else None, f"{self.t('diskusage')} · {gib(used)}")]
-        for (canvas, label, color), (value, detail) in zip(self.gauges, metrics):
-            canvas.delete("all")
-            canvas.create_arc(10, 5, 86, 81, start=230, extent=-280, outline=self.edge, width=5, style="arc")
-            if value is not None:
-                canvas.create_arc(10, 5, 86, 81, start=230, extent=-2.8*value, outline=color, width=5, style="arc")
-            canvas.create_text(48, 45, text=f"{value:.0f}%" if value is not None else "—",
-                               fill=self.ink, font=("Segoe UI", 15, "bold"))
-            label.configure(text=detail)
+        for (canvas, label), (value, detail) in zip(self.gauges, metrics):
+            canvas.itemconfigure("level", extent=-2.8*(value or 0))
+            canvas.itemconfigure("value", text=f"{value:.0f}%" if value is not None else "—")
+            if label.cget("text") != detail:
+                label.configure(text=detail)
         now = time.monotonic()
         for index, line in enumerate(self.lines, 1):
             line.set_data([p[0]-now for p in self.history], [p[index] for p in self.history])

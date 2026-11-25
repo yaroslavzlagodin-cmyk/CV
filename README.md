@@ -1,75 +1,65 @@
 # Pulse · Diagnostyka komputera
 
-Pulse to aplikacja do monitorowania komputera z systemem Windows. Pokazuje obciążenie procesora, wykorzystanie pamięci RAM, zajętość dysków i lokalne adresy IP. Pozwala sprawdzić, które procesy działają, kiedy zostały uruchomione oraz kiedy system Windows rozpoczął pracę lub zamykanie. Interfejs jest w języku polskim i obsługuje jasny oraz ciemny motyw.
+Pulse to aplikacja do monitorowania wydajności komputera z systemem Windows. Wskaźniki pierścieniowe pokazują bieżące wykorzystanie zasobów. Na wykresie obciążenia procesora i wykorzystania pamięci RAM widać, jak długo utrzymywał się wzrost obciążenia. Interfejs jest dostępny po polsku, w jasnym i ciemnym motywie.
 
 ## Uruchomienie
 
-Na komputerze, na którym projekt jest już skonfigurowany, kliknij dwukrotnie **Start.cmd** w folderze projektu.
-
-Aby uruchomić Pulse na innym komputerze z systemem Windows i zainstalowanym Pythonem 3.12, otwórz PowerShell w folderze projektu i wykonaj polecenia:
+Na komputerze z systemem Windows i Pythonem 3.12 (z programem uruchamiającym `py`) kliknij dwukrotnie **Start.cmd**. Przy pierwszym uruchomieniu skrypt tworzy lokalne środowisko `.venv` i instaluje zależności. Kolejne uruchomienia korzystają z tego środowiska. Aby wykonać te kroki ręcznie, otwórz PowerShell w folderze projektu.
 
 ```powershell
-py -3.12 -m pip install -r requirements.txt
-py -3.12 monitor.py
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe monitor.py
 ```
+
+## VS Code Insiders
+
+W folderze projektu uruchom `code-insiders Pulse.code-workspace` lub wybierz w edytorze **File → Open Folder…** i wskaż folder projektu. Przy pierwszym otwarciu zainstaluj zalecane rozszerzenia **Python** i **Python Debugger**, jeśli ich brakuje.
+
+Naciśnij **F5**, aby uruchomić Pulse z debuggerem. Edytor najpierw przygotuje środowisko Python 3.12 w `.venv`. **Ctrl+F5** uruchamia aplikację bez debuggera. Testy znajdziesz w panelu **Testing**.
 
 ## Funkcje
 
-### Przegląd
+- **Przegląd.** Odczyty obciążenia procesora i wykorzystania pamięci RAM są odświeżane mniej więcej co dwie sekundy. Wykres przedstawia oba pomiary z ostatnich 60 sekund na wspólnej skali procentowej. Dla każdego dostępnego woluminu aplikacja podaje system plików, procent zajętego miejsca, ilość wolnego miejsca i całkowitą pojemność. W sekcji sieciowej znajdziesz lokalne adresy IPv4 aktywnych interfejsów.
+- **Procesy.** Lista jest uporządkowana malejąco według wykorzystania pamięci fizycznej. Aby znaleźć proces, wpisz fragment jego nazwy lub identyfikator PID. Kreska w kolumnie czasu uruchomienia oznacza, że system Windows nie udostępnił tej informacji.
+- **Historia zasilania.** Pulse wyświetla do 200 ostatnich zdarzeń związanych z zasilaniem z dziennika System i odświeża listę raz na minutę. Zdarzenie 12 oznacza uruchomienie systemu Windows, a zdarzenie 13 oznacza początek jego zamykania. Przy zdarzeniach 41 i 6008 widoczny jest czas zarejestrowania problemu przez system. Może on przypadać na kolejne uruchomienie komputera. Zakres historii zależy od wpisów zachowanych w dzienniku.
+- **Raport systemowy.** Wybierz **Zapisz raport** u dołu panelu bocznego, aby zapisać bieżące dane i dostępną historię zasilania w pliku JSON z datą w nazwie. Raport zawiera nazwę komputera, lokalne adresy IP i listę uruchomionych procesów.
 
-- **Procesor.** Wskaźnik pokazuje bieżące obciążenie CPU w procentach. Pod nim znajduje się liczba rdzeni logicznych.
-- **Pamięć RAM.** Panel pokazuje procent wykorzystanej pamięci oraz ilość zajętej i całkowitej pamięci w GiB.
-- **Wykres aktywności.** Dwie linie przedstawiają obciążenie CPU i wykorzystanie RAM na wspólnej skali od 0 do 100%. Nowe próbki pojawiają się mniej więcej co dwie sekundy. Wykres obejmuje ostatnie 60 sekund pracy aplikacji.
-- **Dyski.** Wskaźnik pierścieniowy pokazuje łączny procent zajętego miejsca. Poniżej można sprawdzić system plików, pojemność, wolne miejsce i procent zajętości każdego dostępnego woluminu.
-- **Sieć.** Lista zawiera nazwy aktywnych interfejsów sieciowych i przypisane do nich lokalne adresy IPv4.
+Domyślne pliki `Pulse-*.json` i zawartość folderu `reports/` są pomijane przez Git. Jeśli zmieniasz nazwę raportu, zapisz go w tym folderze lub poza repozytorium.
 
-### Procesy
+## Zrzuty ekranu
 
-Lista procesów jest uporządkowana malejąco według wykorzystania pamięci fizycznej. Aby znaleźć program, wpisz fragment jego nazwy lub pełny identyfikator PID. Przy każdym procesie widać jego nazwę, PID, zajętą pamięć w MiB i czas uruchomienia. Kreska w kolumnie czasu oznacza, że Windows nie udostępnił tej informacji.
+Oba widoki przedstawiają dane demonstracyjne.
 
-### Historia zasilania
+![Przegląd w ciemnym motywie z wykresem CPU i RAM](docs/screenshots/overview.png)
 
-Pulse odczytuje do 200 ostatnich pasujących zdarzeń z dziennika **System** i odświeża listę raz na minutę. Tabela zawiera czas wpisu, opis zdarzenia, jego identyfikator oraz źródło.
+![Lista procesów w jasnym motywie](docs/screenshots/processes.png)
 
-| Identyfikator | Źródło | Znaczenie |
-| --- | --- | --- |
-| 12 | Microsoft-Windows-Kernel-General | Uruchomienie systemu Windows. |
-| 13 | Microsoft-Windows-Kernel-General | Rozpoczęcie zamykania systemu. |
-| 41 | Microsoft-Windows-Kernel-Power | Ponowne uruchomienie po nieprawidłowym zamknięciu. |
-| 6008 | EventLog | System wykrył, że poprzednie zamknięcie było nieoczekiwane. |
+## Struktura projektu
 
-Przy zdarzeniach **41** i **6008** tabela pokazuje czas zarejestrowania wpisu. Windows może zapisać go dopiero przy następnym uruchomieniu, dlatego dokładna chwila awarii może być wcześniejsza. Zakres dostępnej historii zależy od wpisów zachowanych w dzienniku systemowym.
+Aplikację uruchamia plik `monitor.py`. Biblioteka CustomTkinter odpowiada za interfejs, Matplotlib rysuje wykres, a psutil odczytuje liczniki systemowe. Przy pierwszym otwarciu zakładki aplikacja tworzy jej widok. Podczas nawigacji ukrywa poprzedni widok i ponownie pokazuje wybrany. Zmiana motywu przebudowuje interfejs, zachowując próbki wykresu i tekst wyszukiwania.
 
-### Raport systemowy
+Moduł `metrics.py` zbiera pomiary i odczytuje dziennik zdarzeń systemu Windows za pomocą PowerShell. Te dwa zadania działają w osobnych wątkach. Teksty interfejsu znajdują się w pliku `strings.py`, a pierwszy prototyp WPF w folderze `legacy/powershell/`.
 
-Wybierz **Zapisz raport** u dołu panelu bocznego i wskaż miejsce zapisu. Aplikacja proponuje nazwę pliku zawierającą datę i godzinę, na przykład `Pulse-20261120-143000.json`.
+## Testy
 
-Raport zawiera czas pomiaru, nazwę komputera, informacje o systemie, czas ostatniego uruchomienia, odczyty CPU i RAM, dane o dyskach, lokalne adresy IPv4, listę procesów i dostępną historię zasilania.
+Po przygotowaniu środowiska uruchom testy zbierania pomiarów i odczytu zdarzeń na danych przykładowych.
 
-## Budowa projektu
-
-| Plik | Przeznaczenie |
-| --- | --- |
-| `Start.cmd` | Uruchamia aplikację z folderu projektu. |
-| `monitor.py` | Tworzy okno, obsługuje nawigację, aktualizuje wykres i tabele oraz zapisuje raport JSON. |
-| `metrics.py` | Zbiera dane o zasobach komputera i procesach. Odczytuje dziennik zdarzeń Windows przez PowerShell. |
-| `strings.py` | Zawiera polskie napisy interfejsu. |
-| `requirements.txt` | Zawiera listę bibliotek Pythona potrzebnych do uruchomienia aplikacji. |
-
-Interfejs korzysta z **CustomTkinter**, wykres z **Matplotlib**, a pomiary systemowe z **psutil**. Moduły `platform` i `socket` dostarczają informacji o systemie i komputerze. Pliki WPF i skrypty PowerShell w głównym folderze projektu pochodzą z wcześniejszego prototypu.
-
-Pomiary zasobów i odczyt dziennika działają w osobnych wątkach, dzięki czemu można korzystać z menu podczas pobierania danych. Przy powrocie do wcześniej otwartej sekcji aplikacja ponownie wykorzystuje istniejący widok.
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+```
 
 ## Plan prac i przypomnienia · 7–20 listopada 2026
 
-Orientacyjny dwutygodniowy plan projektu do portfolio.
+Proponowany dwutygodniowy harmonogram prac nad projektem do portfolio.
 
 | Termin | Zadanie | Co sprawdzić |
 | --- | --- | --- |
-| 7–8 listopada | Przygotować szkic panelu, układ nawigacji i palety kolorów. | Sprawdzić czytelność etykiet, wskaźników i aktywnej pozycji menu w obu motywach. |
-| 9–10 listopada | Dodać odczyty CPU, RAM, dysków i sieci. | Sprawdzić listę woluminów oraz adresy IP na komputerze z kilkoma interfejsami sieciowymi. |
-| 11–12 listopada | Dodać wykres i pobieranie pomiarów w tle. | Pozostawić aplikację otwartą ponad minutę i sprawdzić, czy najstarsze próbki przesuwają się poza lewą krawędź wykresu. |
-| 13–14 listopada | Przygotować listę procesów wraz z wyszukiwaniem. | Uruchomić Notatnik, znaleźć go po nazwie i PID, a następnie zamknąć i sprawdzić, czy wpis znika z listy. |
-| 15–16 listopada | Dodać historię uruchomień i zamknięć systemu. | Porównać czas, identyfikator i źródło wybranego zdarzenia z dziennikiem System w Podglądzie zdarzeń Windows. |
-| 17–18 listopada | Dopracować polskie komunikaty i eksport raportu. | Anulować zapis, ponownie otworzyć okno zapisu, zapisać plik JSON i sprawdzić jego zawartość. |
-| 19–20 listopada | Sprawdzić nawigację i przygotować demonstrację. | Uruchomić aplikację przez `Start.cmd`, otworzyć wszystkie sekcje, zmienić motyw i porównać raport z danymi widocznymi na ekranie. |
+| 7–8 listopada | Naszkicować panel, zaplanować układ przeglądu i dobrać kolory. | Sprawdzić czytelność wartości procentowych i podpisów w obu motywach. |
+| 9–10 listopada | Zebrać dane o procesorze, pamięci RAM, woluminach i sieci. | Przetestować aplikację na komputerze z kilkoma interfejsami sieciowymi i pustym czytnikiem kart. |
+| 11–12 listopada | Dodać wykres z przesuwającym się zakresem czasu oraz odczyt danych w tle. | Pozostawić aplikację otwartą przez ponad minutę i sprawdzić, czy najstarsze próbki znikają za lewą krawędzią wykresu. |
+| 13–14 listopada | Wyświetlić procesy, ich identyfikatory PID i czas uruchomienia. | Otworzyć Notatnik, wyszukać go po nazwie, a następnie zamknąć i sprawdzić, czy znika z listy. |
+| 15–16 listopada | Dodać historię zasilania. | Porównać czas wpisu, identyfikator zdarzenia i źródło z zapisem w dzienniku System. |
+| 17–18 listopada | Dopracować polskie komunikaty i dodać eksport do formatu JSON. | Sprawdzić treść komunikatów, anulować zapis, a następnie ponownie otworzyć okno zapisu i zapisać raport. |
+| 19–20 listopada | Sprawdzić uruchamianie i przygotować prezentację. | Uruchomić aplikację przez `Start.cmd`, otworzyć każdą sekcję i porównać zapisany raport z danymi w panelu. |
+
